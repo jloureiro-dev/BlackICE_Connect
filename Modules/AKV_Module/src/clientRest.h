@@ -622,10 +622,13 @@ int Get_AccesToken(struct client_data *clientData, struct token_response **post_
 *                                    Key Manage
 *******************************************************************************************/
 /**
-* @param keyData Structure with the required data to create a key. @see key_data
-* @param keyResponse Key data result of the key cration operation. @see key_data_response
+* @param keyData Structure with the required data to create a key. 
+		@see key_data
+* @param keyResponse Key data result of the key cration operation. 
+		@see key_data_response
 * @returns Result of the operation for error handling.
-* @brief Create_key Creates a new key, stores it, then returns key parameters and attributes to the client.
+* @brief Create_key Creates a new key, stores it, 
+	then returns key parameters and attributes to the client.
 */
 int Create_key(struct key_data *keyData, struct key_data_response **keyResponse);
 /**
@@ -680,10 +683,12 @@ int Restore_Key(struct value_http_data * restoreKey, struct key_data_response **
 *                                    Key Operations
 *******************************************************************************************/
 /**
-* @param signData Structure with the necessary information for the signature and the hash of the data to sign @see operation_data
+* @param signData Structure with the necessary information 
+for the signature  and the hash of the data to sign @see operation_data
 * @param signResponse Firma @see operation_response
 * @returns Result of the operation for error handling.
-* @brief Sign SIGN is applicable to asymmetric and symmetric keys stored in Azure Key Vault since this operation uses the private portion of the key.
+* @brief Sign SIGN is applicable to asymmetric and symmetric keys 
+stored in Azure Key Vault since this operation uses the private portion of the key.
 */
 int Sign(struct operation_data *signData, struct operation_response **signResponse);
 /**

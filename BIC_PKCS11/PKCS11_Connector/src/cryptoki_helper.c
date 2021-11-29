@@ -3221,6 +3221,7 @@ CK_ULONG Template2JWK(CK_ATTRIBUTE pTemplate, struct key_data *keyData, CK_ULONG
 	int index;
 	char * stringInt;
 	time_t date;
+
 	//common storage object attributes
 	switch (pTemplate.type) {
 	case CKA_CLASS:
@@ -3250,6 +3251,8 @@ CK_ULONG Template2JWK(CK_ATTRIBUTE pTemplate, struct key_data *keyData, CK_ULONG
 	case CKA_LABEL: //The label is created by de library
 		return CKR_OK;
 	}
+
+
 	//Common Key Attributes
 	switch (pTemplate.type) {
 	case CKA_KEY_TYPE:
@@ -3429,8 +3432,10 @@ CK_ULONG Template2JWK(CK_ATTRIBUTE pTemplate, struct key_data *keyData, CK_ULONG
 			return CKR_OK;
 		}
         //EC Public Key Object Attributes
-        switch (pTemplate.type) {
-        case CKA_ECDSA_PARAMS:
+        
+		switch (pTemplate.type) {
+
+        case CKA_EC_PARAMS:
             if (pTemplate.pValue == NULL || pTemplate.ulValueLen< 3) {
                 return CKR_ATTRIBUTE_VALUE_INVALID;
             }

@@ -184,6 +184,7 @@ struct RSAPublicKeyObjectAttributes {
 * @param coeficient CRT coefficient q-1 mod p. @see raw_data
 * @brief RSAPrivateKeyObjectAttributes Struct to store the RSA private key attributes of pkcs#11 Objects.
 */
+
 struct RSAPrivateKeyObjectAttributes {
 	struct raw_data modulus;
 	struct raw_data publicExponent;

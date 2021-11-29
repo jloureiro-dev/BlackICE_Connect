@@ -2204,6 +2204,13 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_P
 	case CKM_SHA512_RSA_PKCS:
 		strcpy(currentSession->operationAlgorithm, "CKM_SHA512_RSA_PKCS");
 		break;
+	case CKM_ECDSA_SHA256:
+		strcpy(currentSession->operationAlgorithm, "CKM_ECDSA_SHA256");
+		break;
+	case CKM_ECDSA_SHA1:
+		strcpy(currentSession->operationAlgorithm, "CKM_ECDSA_SHA256");
+		break;
+
 	default:
 		strcpy(context.error, "CKR_MECHANISM_INVALID");
 		 Write_DebugData(context, LOG_CONTEXT);
@@ -2216,7 +2223,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_SignInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM_P
 	return CKR_OK;
 }
 
-CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData, CK_ULONG ulDataLen, CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen)
+CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, 
+	CK_BYTE_PTR pData, CK_ULONG ulDataLen, 
+	CK_BYTE_PTR pSignature, CK_ULONG_PTR pulSignatureLen)
 {
 	context context;
 	Context_Initialization("C_Sign", &context);
@@ -2242,12 +2251,14 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 		C_CloseSession(currentSession->sessionHandler);
 		return CKR_SESSION_CLOSED;
 	}
-	if ((currentSession->operationState != OPERATION_SIGN) || (currentSession->findObjects.currentObjectHandler <= 0)) {
+	if ((currentSession->operationState != OPERATION_SIGN) 
+		|| (currentSession->findObjects.currentObjectHandler <= 0)) {
 		strcpy(context.error, "CKR_OPERATION_NOT_INITIALIZED");
 		 Write_DebugData(context, LOG_CONTEXT);
 		return CKR_OPERATION_NOT_INITIALIZED;
 	}
-	struct objects *currentObject = Find_Object(cacheTokenObjects, currentSession->findObjects.currentObjectHandler);
+	struct objects *currentObject = Find_Object(cacheTokenObjects, 
+		currentSession->findObjects.currentObjectHandler);
 	if (currentObject == NULL) {
 		currentSession->operationState = OPERATION_FREE;
 		strcpy(context.error, "CKR_OPERATION_NOT_INITIALIZED");
@@ -2279,9 +2290,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 		return(CKR_ARGUMENTS_BAD);
 	}
 	struct operation_response *signResponse = NULL_PTR;
-	int sha_len;
-	int hashtype;
-	unsigned char * sha = DecodeASN1Hash(pData, ulDataLen, &hashtype, &sha_len);
+	int sha_len=32;
+	int hashtype=256;
+	//unsigned char * sha = DecodeASN1Hash(pData, ulDataLen, &hashtype, &sha_len);
+	unsigned char* sha = (unsigned char*)pData;
 	if (sha == NULL) {
 		currentSession->operationState = OPERATION_FREE;
 		strcpy(context.error, "CKR_ARGUMENTS_BAD");
@@ -2291,7 +2303,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 	unsigned char algorithm[MAX_JWA_ALGORITHM_LEN] = "";
 	switch (hashtype) {
 	case SHA_256:
-		strcpy((char *)algorithm, "RS256");
+		//strcpy((char *)algorithm, "RS256");
+		strcpy((char*)algorithm, "ES256K");
 		break;
 	case SHA_384:
 		strcpy((char *)algorithm, "RS384");
@@ -2314,8 +2327,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 		 Write_DebugData(context, LOG_CONTEXT);
 		return CKR_HOST_MEMORY;
 	}
-	free(sha);
-	struct operation_data *signData = Store_OperationData(TOKEN, (char *)currentObject->keyObject->commonKeyAtt.id, HOST, (char *)algorithm, base64Encoded);
+	//free(sha);
+	
+	struct operation_data *signData = 
+		Store_OperationData(TOKEN, (char *)currentObject->
+			keyObject->commonKeyAtt.id, HOST, (char *)algorithm, base64Encoded);
 	if (signData == NULL) {
 		currentSession->operationState = OPERATION_FREE;
 		strcpy(context.error, "CKR_HOST_MEMORY");
@@ -2339,7 +2355,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 		return error;
 	}
 	size_t sign_len = 0;
-	size_t outputLen = 4 * (strlen(signResponse->value) / 3); //base64 ratio of output to input bytes = 4:3
+	size_t outputLen = 4 * (strlen(signResponse->value) / 3); 
+	//base64 ratio of output to input bytes = 4:3
 	unsigned char* sign = malloc(outputLen);
 	if (sign == NULL) {
 		currentSession->operationState = OPERATION_FREE;
@@ -2347,7 +2364,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 		 Write_DebugData(context, LOG_CONTEXT);
 		return CKR_HOST_MEMORY;
 	}
-	result = base64url_decode((char *)sign, outputLen, signResponse->value, strlen(signResponse->value), &sign_len);
+	result = base64url_decode((char *)sign, outputLen, 
+		signResponse->value, strlen(signResponse->value), &sign_len);
 	Free_OperationResponse(signResponse);
 	if (result != 0 || sign_len > outputLen) {
 		currentSession->operationState = OPERATION_FREE;
@@ -2378,7 +2396,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_Sign)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pData,
 	return CKR_OK;
 }
 
-CK_DEFINE_FUNCTION(CK_RV, C_SignUpdate)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pPart, CK_ULONG ulPartLen)
+CK_DEFINE_FUNCTION(CK_RV, C_SignUpdate)(CK_SESSION_HANDLE hSession, 
+	CK_BYTE_PTR pPart, CK_ULONG ulPartLen)
 {
 	context context;
 	Context_Initialization("C_SignUpdate", &context);
@@ -2494,6 +2513,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_VerifyInit)(CK_SESSION_HANDLE hSession, CK_MECHANISM
 	case CKM_SHA512_RSA_PKCS:
 		strcpy(currentSession->operationAlgorithm, "CKM_SHA512_RSA_PKCS");
 		break;
+	case CKM_ECDSA_SHA256:
+		strcpy(currentSession->operationAlgorithm, "CKM_ECDSA_SHA256");
+		break;
 	default:
 		strcpy(context.error, "CKR_MECHANISM_INVALID");
 		 Write_DebugData(context, LOG_CONTEXT);
@@ -2580,7 +2602,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_Verify)(CK_SESSION_HANDLE hSession, CK_BYTE_PTR pDat
 	unsigned char algorithm[MAX_JWA_ALGORITHM_LEN] = "";
 	switch (hashtype) {
 	case SHA_256:
-		strcpy((char *)algorithm, "RS256");
+		//strcpy((char *)algorithm, "RS256");
+		strcpy((char*)algorithm, "ES256K");
 		break;
 	case SHA_384:
 		strcpy((char *)algorithm, "RS384");
@@ -2780,7 +2803,14 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKey)(CK_SESSION_HANDLE hSession, CK_MECHANIS
 	return CKR_FUNCTION_NOT_SUPPORTED;
 }
 
-CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession, CK_MECHANISM_PTR pMechanism, CK_ATTRIBUTE_PTR pPublicKeyTemplate, CK_ULONG ulPublicKeyAttributeCount, CK_ATTRIBUTE_PTR pPrivateKeyTemplate, CK_ULONG ulPrivateKeyAttributeCount, CK_OBJECT_HANDLE_PTR phPublicKey, CK_OBJECT_HANDLE_PTR phPrivateKey)
+CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession, 
+	CK_MECHANISM_PTR pMechanism,
+	CK_ATTRIBUTE_PTR pPublicKeyTemplate, 
+	CK_ULONG ulPublicKeyAttributeCount, 
+	CK_ATTRIBUTE_PTR pPrivateKeyTemplate, 
+	CK_ULONG ulPrivateKeyAttributeCount, 
+	CK_OBJECT_HANDLE_PTR phPublicKey, 
+	CK_OBJECT_HANDLE_PTR phPrivateKey)
 {
 	context context;
 	Context_Initialization("C_GenerateKeyPair", &context);
@@ -2826,7 +2856,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession, CK_MECH
 		break;
 	}
     //if (pMechanism->mechanism != CKM_RSA_PKCS_KEY_PAIR_GEN) {
-    if ((pMechanism->mechanism != CKM_RSA_PKCS_KEY_PAIR_GEN) && (pMechanism->mechanism != CKM_EC_KEY_PAIR_GEN)) {
+    if ((pMechanism->mechanism != CKM_RSA_PKCS_KEY_PAIR_GEN) && 
+		(pMechanism->mechanism != CKM_EC_KEY_PAIR_GEN)) {
 		strcpy(context.error, "CKR_MECHANISM_INVALID");
 		 Write_DebugData(context, LOG_CONTEXT);
 		return CKR_MECHANISM_INVALID;
@@ -2857,7 +2888,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession, CK_MECH
 		return CKR_HOST_MEMORY;
 	}
 	keyData->attributes = keyAttributes;
-	if ((pMechanism->mechanism == CKM_RSA_PKCS_KEY_PAIR_GEN) || (pMechanism->mechanism == CKM_RSA_PKCS)) {
+	if ((pMechanism->mechanism == CKM_RSA_PKCS_KEY_PAIR_GEN) 
+		|| (pMechanism->mechanism == CKM_RSA_PKCS)) {
 		if (HSM_PROCESSED == FALSE) {
 			keyData->keytype = _strdup("RSA");
 		}
@@ -2874,8 +2906,10 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession, CK_MECH
     if (pMechanism->mechanism == CKM_EC_KEY_PAIR_GEN) {
         if (HSM_PROCESSED == FALSE) {
             keyData->keytype = _strdup("EC");
+			keyData->crv = _strdup("P-256K");
         } else {
             keyData->keytype = _strdup("EC-HSM");
+			keyData->crv = _strdup("P-256K");
         }
         if (keyData->keytype == NULL) {
             Free_KeyData(keyData);
@@ -2894,6 +2928,7 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession, CK_MECH
 		}
 	}
 	for (CK_ULONG i = 0; i < ulPrivateKeyAttributeCount; i++) {
+		//OJO con TEmplate2JWK -> va metiendo coge los parámetros de la plantilla y los mete en keydata.
 		result = Template2JWK(pPrivateKeyTemplate[i], keyData, CKO_PRIVATE_KEY, pMechanism->mechanism);
 		if (result != CKR_OK) {
 			Free_KeyData(keyData);
@@ -2903,7 +2938,11 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession, CK_MECH
 		}
 	}
 	if (keyAttributes != NULL) { //For Azure key Vault key attributes default value
-		if (keyAttributes->created == 0 && keyAttributes->enabled == 0 && keyAttributes->exp == 0 && keyAttributes->nbf == 0 && keyAttributes->updated == 0) {
+		if (keyAttributes->created == 0 
+			&& keyAttributes->enabled == 0 
+			&& keyAttributes->exp == 0 
+			&& keyAttributes->nbf == 0 
+			&& keyAttributes->updated == 0) {
 			Free_KeyAttributes(keyAttributes);
 			keyAttributes = NULL;
 			keyData->attributes = NULL;
@@ -2945,14 +2984,18 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession, CK_MECH
 		 Write_DebugData(context, LOG_CONTEXT);
 		return error;
 	}
-	struct keyObject *pkcs11_PublicKey = AzurePKCS11KeyTranslator(keyResponse, CKO_PUBLIC_KEY, (CK_CHAR_PTR)TOKEN, cacheTokenObjects);
+	struct keyObject *pkcs11_PublicKey 
+		= AzurePKCS11KeyTranslator(keyResponse, CKO_PUBLIC_KEY, 
+			(CK_CHAR_PTR)TOKEN, cacheTokenObjects);
 	if (pkcs11_PublicKey == NULL) {
 		Free_KeyCreationResponse(keyResponse);
 		strcpy(context.error, "CKR_HOST_MEMORY");
 		 Write_DebugData(context, LOG_CONTEXT);
 		return CKR_HOST_MEMORY;
 	}
-	struct keyObject *pkcs11_PrivateKey = AzurePKCS11KeyTranslator(keyResponse, CKO_PRIVATE_KEY, (CK_CHAR_PTR)TOKEN, cacheTokenObjects);
+	struct keyObject *pkcs11_PrivateKey 
+		= AzurePKCS11KeyTranslator(keyResponse, CKO_PRIVATE_KEY, 
+			(CK_CHAR_PTR)TOKEN, cacheTokenObjects);
 	if (pkcs11_PrivateKey == NULL) {
 		free(pkcs11_PrivateKey);
 		Free_KeyCreationResponse(keyResponse);
@@ -2960,7 +3003,9 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession, CK_MECH
 		 Write_DebugData(context, LOG_CONTEXT);
 		return CKR_HOST_MEMORY;
 	}
-	struct objects *pkcs11_Private_Key_object = New_TokenObject(&cacheTokenObjects, (CK_CHAR_PTR)keyResponse->id, CKO_PRIVATE_KEY);
+	struct objects *pkcs11_Private_Key_object 
+		= New_TokenObject(&cacheTokenObjects, 
+			(CK_CHAR_PTR)keyResponse->id, CKO_PRIVATE_KEY);
 	if (pkcs11_Private_Key_object == NULL) {
 		Free_KeyCreationResponse(keyResponse);
 		strcpy(context.error, "CKR_HOST_MEMORY");
@@ -2968,7 +3013,8 @@ CK_DEFINE_FUNCTION(CK_RV, C_GenerateKeyPair)(CK_SESSION_HANDLE hSession, CK_MECH
 		return CKR_HOST_MEMORY;
 	}
 	else  pkcs11_Private_Key_object->keyObject = pkcs11_PrivateKey;
-	struct objects *pkcs11_Public_Key_object = New_TokenObject(&cacheTokenObjects, (CK_CHAR_PTR)keyResponse->id, CKO_PUBLIC_KEY);
+	struct objects *pkcs11_Public_Key_object = New_TokenObject(&cacheTokenObjects,
+		(CK_CHAR_PTR)keyResponse->id, CKO_PUBLIC_KEY);
     if (pkcs11_Public_Key_object == NULL) {
         Free_Object(pkcs11_Private_Key_object);
 		Free_KeyCreationResponse(keyResponse);

@@ -580,6 +580,10 @@ namespace akv_pkcs11.Test
 
         public const c_ulong CKM_ECDSA = 0x00001041;
         public const c_ulong CKM_ECDSA_SHA1 = 0x00001042;
+        public const c_ulong CKM_ECDSA_SHA224 = 0x00001043;
+        public const c_ulong CKM_ECDSA_SHA256 = 0x00001044;
+        public const c_ulong CKM_ECDSA_SHA384 = 0x00001045;
+        public const c_ulong CKM_ECDSA_SHA512 = 0x00001042;
 
         /* CKM_ECDH1_DERIVE, CKM_ECDH1_COFACTOR_DERIVE, and CKM_ECMQV_DERIVE
          * are new for v2.11 */

@@ -154,7 +154,7 @@ namespace akv_pkcs11.Test
             string[] nonExistingCertificates = RestClient.NonExistingCertificates(certificates);
             if (nonExistingCertificates.Length > 0)
             {
-                RestClient.CreateCertificates(nonExistingCertificates);
+                //RestClient.CreateCertificates(nonExistingCertificates);
             }
         }
 
@@ -1049,6 +1049,7 @@ namespace akv_pkcs11.Test
         [TestMethod]
         public unsafe void Test_C_GenerateKeyPair()
         {
+            //C_INICIALIZE()
             c_ulong result = C_Initialize(IntPtr.Zero);
             Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
             c_ulong slotID = 1;
@@ -1057,14 +1058,20 @@ namespace akv_pkcs11.Test
             IntPtr pApplication = IntPtr.Zero;
             IntPtr Notify = IntPtr.Zero;
             IntPtr phSession = Marshal.AllocHGlobal(sizeof(c_ulong));
+            
+            //C_OPENSESSION()
             result = C_OpenSession(slotID, flags, pApplication, Notify, phSession);
             Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            
+            //Añadimos los mecanismos para la generación de la clave
             CK_MECHANISM pMechanism = new CK_MECHANISM
             {
                 mechanism = PKCS11Definitions.CKM_RSA_PKCS_KEY_PAIR_GEN,
                 pParameter = IntPtr.Zero,
                 ulParameterLen = 0
             };
+
+            //C_LOGIN()
             result = C_Login(1, PKCS11Definitions.CKU_USER, "1234", 4);
             Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
             // ****** Public template ****** //
@@ -1081,15 +1088,19 @@ namespace akv_pkcs11.Test
             };
 
             c_int publicArraySize = PKCS11Utils.GetSizeOfTupleArray(publicTuple);
+
+            // Public Template
             IntPtr pPublicKeyTemplate = Marshal.AllocHGlobal(publicArraySize);
 
             PKCS11Utils.InsertAttributesIntPtr(pPublicKeyTemplate, publicTuple);
+           
             // ****** Private template ****** //
             Byte[] CKA_DECRYPT = new Byte[1];
             CKA_DECRYPT[0] = 1;
             Byte[] CKA_SIGN = new Byte[1];
             CKA_SIGN[0] = 1;
-            Byte[] CKA_ID = Encoding.ASCII.GetBytes("GENKEYHSM");
+            Byte[] CKA_ID = Encoding.ASCII.GetBytes("GENRSAKEYHSM");
+            
             Tuple<c_ulong, Byte[], c_ulong>[] privateTuple =
             {
                 Tuple.Create(PKCS11Definitions.CKA_DECRYPT, CKA_DECRYPT, (c_ulong)(Marshal.SizeOf(CKA_DECRYPT[0]) * CKA_DECRYPT.Length)),
@@ -1097,20 +1108,125 @@ namespace akv_pkcs11.Test
                 Tuple.Create(PKCS11Definitions.CKA_ID, CKA_ID, (c_ulong)(Marshal.SizeOf(CKA_ID[0]) * CKA_ID.Length))
             };
             c_int privateArraySize = PKCS11Utils.GetSizeOfTupleArray(privateTuple);
+            
+            // Private Template
             IntPtr pPrivateKeyTemplate = Marshal.AllocHGlobal(privateArraySize);
 
             PKCS11Utils.InsertAttributesIntPtr(pPrivateKeyTemplate, privateTuple);
             // **************************** //
             IntPtr phPublicKey = Marshal.AllocHGlobal(sizeof(c_ulong));
             IntPtr phPrivateKey = Marshal.AllocHGlobal(sizeof(c_ulong));
+            
+            //GENERATE_KEYPAIR
             result = C_GenerateKeyPair((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), ref pMechanism, pPublicKeyTemplate, (c_ulong)publicTuple.Length, pPrivateKeyTemplate, (c_ulong)privateTuple.Length, phPublicKey, phPrivateKey);
+            
             Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
             Assert.AreEqual((c_ulong)2, (c_ulong)PKCS11Utils.ReadLongFromBuffer(phPublicKey,0));
             Assert.AreEqual((c_ulong)1, (c_ulong)PKCS11Utils.ReadLongFromBuffer(phPrivateKey, 0));
             PKCS11Utils.FreeTemplateAttributesIntPtr(pPublicKeyTemplate, publicTuple.Length);
             PKCS11Utils.FreeTemplateAttributesIntPtr(pPrivateKeyTemplate, privateTuple.Length);
+            
+            //ClOSE_SESSION()
             result = C_CloseSession((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0));
             Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            
+            //FINALIZE()
+            result = C_Finalize(IntPtr.Zero);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+
+            Marshal.FreeHGlobal(pPublicKeyTemplate);
+            Marshal.FreeHGlobal(pPrivateKeyTemplate);
+            Marshal.FreeHGlobal(phPublicKey);
+            Marshal.FreeHGlobal(phPrivateKey);
+        }
+
+        [TestMethod]
+        public unsafe void Test_C_GenerateECKeyPair()
+        {
+            //C_INICIALIZE()
+            c_ulong result = C_Initialize(IntPtr.Zero);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            c_ulong slotID = 1;
+            c_ulong flags;
+            flags = (PKCS11Definitions.CKF_RW_SESSION | PKCS11Definitions.CKF_SERIAL_SESSION);
+            IntPtr pApplication = IntPtr.Zero;
+            IntPtr Notify = IntPtr.Zero;
+            IntPtr phSession = Marshal.AllocHGlobal(sizeof(c_ulong));
+
+            //C_OPENSESSION()
+            result = C_OpenSession(slotID, flags, pApplication, Notify, phSession);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+
+            //Añadimos los mecanismos para la generación de la clave
+            CK_MECHANISM pMechanism = new CK_MECHANISM
+            {
+                mechanism = PKCS11Definitions.CKM_EC_KEY_PAIR_GEN,
+                pParameter = IntPtr.Zero,
+                ulParameterLen = 0
+            };
+
+            //C_LOGIN()
+            result = C_Login(1, PKCS11Definitions.CKU_USER, "1234", 4);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            // ****** Public template ****** //
+            Byte[] CKA_ENCRYPT = new Byte[1];
+            CKA_ENCRYPT[0] = 0;
+
+            Byte[] CKA_VERIFY = new Byte[1];
+            CKA_VERIFY[0] = 1;
+            Byte[] modulusbits = BitConverter.GetBytes(2048);
+            Tuple<c_ulong, Byte[], c_ulong>[] publicTuple =
+            {
+                Tuple.Create(PKCS11Definitions.CKA_ENCRYPT, CKA_ENCRYPT, (c_ulong)(Marshal.SizeOf(CKA_ENCRYPT[0]) * CKA_ENCRYPT.Length)),
+                Tuple.Create(PKCS11Definitions.CKA_VERIFY, CKA_VERIFY, (c_ulong)(Marshal.SizeOf(CKA_VERIFY[0]) * CKA_VERIFY.Length)),
+                Tuple.Create(PKCS11Definitions.CKA_MODULUS_BITS, modulusbits, (c_ulong)(Marshal.SizeOf(modulusbits[0]) * modulusbits.Length))
+            };
+
+            c_int publicArraySize = PKCS11Utils.GetSizeOfTupleArray(publicTuple);
+
+            // Public Template
+            IntPtr pPublicKeyTemplate = Marshal.AllocHGlobal(publicArraySize);
+
+            PKCS11Utils.InsertAttributesIntPtr(pPublicKeyTemplate, publicTuple);
+
+            // ****** Private template ****** //
+            Byte[] CKA_DECRYPT = new Byte[1];
+            CKA_DECRYPT[0] = 0;
+            Byte[] CKA_SIGN = new Byte[1];
+            CKA_SIGN[0] = 1;
+            Byte[] CKA_ID = Encoding.ASCII.GetBytes("GENECKEYHSM");
+
+            Tuple<c_ulong, Byte[], c_ulong>[] privateTuple =
+            {
+                Tuple.Create(PKCS11Definitions.CKA_DECRYPT, CKA_DECRYPT, (c_ulong)(Marshal.SizeOf(CKA_DECRYPT[0]) * CKA_DECRYPT.Length)),
+                Tuple.Create(PKCS11Definitions.CKA_SIGN, CKA_SIGN, (c_ulong)(Marshal.SizeOf(CKA_SIGN[0]) * CKA_SIGN.Length)),
+                Tuple.Create(PKCS11Definitions.CKA_ID, CKA_ID, (c_ulong)(Marshal.SizeOf(CKA_ID[0]) * CKA_ID.Length))
+            };
+            c_int privateArraySize = PKCS11Utils.GetSizeOfTupleArray(privateTuple);
+
+            // Private Template
+            IntPtr pPrivateKeyTemplate = Marshal.AllocHGlobal(privateArraySize);
+
+            PKCS11Utils.InsertAttributesIntPtr(pPrivateKeyTemplate, privateTuple);
+            // **************************** //
+            IntPtr phPublicKey = Marshal.AllocHGlobal(sizeof(c_ulong));
+            IntPtr phPrivateKey = Marshal.AllocHGlobal(sizeof(c_ulong));
+
+            //GENERATE_KEYPAIR
+            result = C_GenerateKeyPair((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), ref pMechanism, pPublicKeyTemplate, 
+                (c_ulong)publicTuple.Length, pPrivateKeyTemplate, (c_ulong)privateTuple.Length, phPublicKey, phPrivateKey);
+            
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            Assert.AreEqual((c_ulong)2, (c_ulong)PKCS11Utils.ReadLongFromBuffer(phPublicKey, 0));
+            Assert.AreEqual((c_ulong)1, (c_ulong)PKCS11Utils.ReadLongFromBuffer(phPrivateKey, 0));
+            PKCS11Utils.FreeTemplateAttributesIntPtr(pPublicKeyTemplate, publicTuple.Length);
+            PKCS11Utils.FreeTemplateAttributesIntPtr(pPrivateKeyTemplate, privateTuple.Length);
+
+            //ClOSE_SESSION()
+            result = C_CloseSession((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0));
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+
+            //FINALIZE()
             result = C_Finalize(IntPtr.Zero);
             Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
 
@@ -1588,9 +1704,10 @@ namespace akv_pkcs11.Test
             };
             result = C_Login((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), PKCS11Definitions.CKU_USER, "1234", 4);
             Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            
             //**** Template *****//
             Byte[] CKA_CLASS = BitConverter.GetBytes(PKCS11Definitions.CKO_PRIVATE_KEY);
-            Byte[] CKA_ID = Encoding.ASCII.GetBytes("testCert1");
+            Byte[] CKA_ID = Encoding.ASCII.GetBytes("GENRSAKEYHSM");
             Tuple<c_ulong, Byte[], c_ulong>[] pTuple =
             {
                 Tuple.Create(PKCS11Definitions.CKA_CLASS, CKA_CLASS, (c_ulong)(Marshal.SizeOf(CKA_CLASS[0]) * CKA_CLASS.Length)),
@@ -1650,6 +1767,100 @@ namespace akv_pkcs11.Test
             Marshal.FreeHGlobal(phObjects);
             Marshal.FreeHGlobal(pulcObjectCount);
         }
+
+
+
+
+        [TestMethod]
+        public unsafe void Test_C_Sign_EC_Correct_Sha256()
+        {
+            c_ulong result = C_Initialize(IntPtr.Zero);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            c_ulong slotID = 1;
+            c_ulong flags = (PKCS11Definitions.CKF_RW_SESSION | PKCS11Definitions.CKF_SERIAL_SESSION);
+            IntPtr pApplication = IntPtr.Zero;
+            IntPtr Notify = IntPtr.Zero;
+            IntPtr phSession = Marshal.AllocHGlobal(sizeof(c_ulong));
+            result = C_OpenSession(slotID, flags, pApplication, Notify, phSession);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            CK_MECHANISM pMechanism = new CK_MECHANISM
+            {
+                mechanism = PKCS11Definitions.CKM_ECDSA_SHA256,
+                pParameter = IntPtr.Zero,
+                ulParameterLen = 0
+            };
+            result = C_Login((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), PKCS11Definitions.CKU_USER, "1234", 4);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+
+            //**** Template *****//
+            Byte[] CKA_CLASS = BitConverter.GetBytes(PKCS11Definitions.CKO_PRIVATE_KEY);
+            Byte[] CKA_ID = Encoding.ASCII.GetBytes("GENECKEYHSM");
+            Tuple<c_ulong, Byte[], c_ulong>[] pTuple =
+            {
+                Tuple.Create(PKCS11Definitions.CKA_CLASS, CKA_CLASS, (c_ulong)(Marshal.SizeOf(CKA_CLASS[0]) * CKA_CLASS.Length)),
+                Tuple.Create(PKCS11Definitions.CKA_ID, CKA_ID, (c_ulong)(Marshal.SizeOf(CKA_ID[0]) * CKA_ID.Length))
+            };
+            c_int tupleArraySize = PKCS11Utils.GetSizeOfTupleArray(pTuple);
+            IntPtr pTemplate = Marshal.AllocHGlobal(tupleArraySize); //previous template already freed
+
+            PKCS11Utils.InsertAttributesIntPtr(pTemplate, pTuple);
+            //*******************//
+            //** C_FindObject **//
+            result = C_FindObjectsInit((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), pTemplate, (c_ulong)pTuple.Length);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            PKCS11Utils.FreeTemplateAttributesIntPtr(pTemplate, pTuple.Length);
+            IntPtr phObjects = Marshal.AllocHGlobal(sizeof(c_ulong) * 5);
+            IntPtr pulcObjectCount = Marshal.AllocHGlobal(sizeof(c_ulong));
+            for (int i = 0; i < 5; i++)
+            {
+                result = C_FindObjects((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), IntPtr.Add(phObjects, (c_int)(sizeof(c_ulong) * i)), 1, pulcObjectCount);
+                Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                if (PKCS11Utils.ReadLongFromBuffer(pulcObjectCount, 0) == 0) break;
+            }
+            result = C_FindObjectsFinal((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0));
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            if ((c_ulong)PKCS11Utils.ReadLongFromBuffer(phObjects, 0) != 0)
+            {
+                result = C_SignInit((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), ref pMechanism, (c_ulong)PKCS11Utils.ReadLongFromBuffer(phObjects, 0));
+                Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                string oidString = CryptoConfig.MapNameToOID("sha256");
+                Byte[] encodedOid = CryptoConfig.EncodeOID(oidString);
+                string hexOIDSting = PKCS11Utils.ByteArrayToString(encodedOid);
+                string hash = "ebac6efe864bcb9a448d2cd234232685771e8852c89b245aa745efd94b029274";
+                string asn1hash = ("30" + 49.ToString("X2") + "30" + 13.ToString("X2") + hexOIDSting + "050004" + 32.ToString("X2") + hash).ToLower();
+                Byte[] asn1Bytes = Enumerable.Range(0, asn1hash.Length / 2).Select(x => Convert.ToByte(asn1hash.Substring(x * 2, 2), 16)).ToArray();
+                IntPtr pData = Marshal.AllocHGlobal(asn1Bytes.Length);
+                Marshal.Copy(asn1Bytes, 0, pData, asn1Bytes.Length);
+                IntPtr pSignature = IntPtr.Zero;
+                IntPtr pSignatureLen = Marshal.AllocHGlobal(sizeof(c_ulong));
+                
+                result = C_Sign((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), pData, (c_ulong)asn1Bytes.Length, pSignature, pSignatureLen);
+                Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                pSignature = Marshal.AllocHGlobal((c_int)PKCS11Utils.ReadLongFromBuffer(pSignatureLen, 0));
+                
+                result = C_Sign((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), pData, (c_ulong)asn1Bytes.Length, pSignature, pSignatureLen);
+                Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                Marshal.FreeHGlobal(pData);
+                Marshal.FreeHGlobal(pSignatureLen);
+                Marshal.FreeHGlobal(pSignature);
+            }
+            result = C_Logout((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0));
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            result = C_CloseSession((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0));
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            result = C_Finalize(IntPtr.Zero);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+
+            Marshal.FreeHGlobal(phSession);
+            Marshal.FreeHGlobal(pTemplate);
+            Marshal.FreeHGlobal(phObjects);
+            Marshal.FreeHGlobal(pulcObjectCount);
+        }
+
+
+
+
+
 
         [TestMethod]
         public unsafe void Test_C_VerifyInit_correct()
@@ -1748,6 +1959,7 @@ namespace akv_pkcs11.Test
             IntPtr pTemplate = Marshal.AllocHGlobal(tupleArraySize); //previous template already freed
 
             PKCS11Utils.InsertAttributesIntPtr(pTemplate, pTuple);
+            
             //*******************//
             //** C_FindObject **//
             result = C_FindObjectsInit((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), pTemplate, (c_ulong)pTuple.Length);
@@ -1835,6 +2047,151 @@ namespace akv_pkcs11.Test
             Marshal.FreeHGlobal(phObjects);
             Marshal.FreeHGlobal(pulcObjectCount);
         }
+
+
+        [TestMethod]
+        public unsafe void Test_C_Sign_and_Verify_ECDSA_SHA256()
+        {
+
+            // INICIALIZACIÓN DEL PROVEEDOR
+            c_ulong result = C_Initialize(IntPtr.Zero);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            c_ulong slotID = 1;
+            c_ulong flags = (PKCS11Definitions.CKF_RW_SESSION | PKCS11Definitions.CKF_SERIAL_SESSION);
+            IntPtr pApplication = IntPtr.Zero;
+            IntPtr Notify = IntPtr.Zero;
+            IntPtr phSession = Marshal.AllocHGlobal(sizeof(c_ulong));
+            
+            // ESTABLECIMIENTO DE LA CONEXIÓN
+            result = C_OpenSession(slotID, flags, pApplication, Notify, phSession);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            CK_MECHANISM pMechanism = new CK_MECHANISM
+            {
+                mechanism = PKCS11Definitions.CKM_RSA_PKCS,
+                pParameter = IntPtr.Zero,
+                ulParameterLen = 0
+            };
+            
+            //LOGIN 
+            result = C_Login((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), PKCS11Definitions.CKU_USER, "1234", 4);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            
+            // PLANTILLA DE LA CLAVE PRIVADA
+            Byte[] CKA_CLASS = BitConverter.GetBytes(PKCS11Definitions.CKO_PRIVATE_KEY);
+            Byte[] CKA_ID = Encoding.ASCII.GetBytes("GENECKEYHSM");
+            Tuple<c_ulong, Byte[], c_ulong>[] pTuple =
+            {
+                Tuple.Create(PKCS11Definitions.CKA_CLASS, CKA_CLASS, (c_ulong)(Marshal.SizeOf(CKA_CLASS[0]) * CKA_CLASS.Length)),
+                Tuple.Create(PKCS11Definitions.CKA_ID, CKA_ID, (c_ulong)(Marshal.SizeOf(CKA_ID[0]) * CKA_ID.Length))
+            };
+            c_int tupleArraySize = PKCS11Utils.GetSizeOfTupleArray(pTuple);
+            IntPtr pTemplate = Marshal.AllocHGlobal(tupleArraySize); //previous template already freed
+
+            PKCS11Utils.InsertAttributesIntPtr(pTemplate, pTuple);
+            //*******************//
+            //** C_FindObject **//
+            result = C_FindObjectsInit((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), pTemplate, (c_ulong)pTuple.Length);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            PKCS11Utils.FreeTemplateAttributesIntPtr(pTemplate, pTuple.Length);
+            Marshal.FreeHGlobal(pTemplate); //Will be reused
+            IntPtr phObjects = Marshal.AllocHGlobal(sizeof(c_ulong) * 5);
+            IntPtr pulcObjectCount = Marshal.AllocHGlobal(sizeof(c_ulong));
+            for (c_long i = 0; i < 5; i++)
+            {
+                result = C_FindObjects((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), IntPtr.Add(phObjects, (c_int)(sizeof(c_ulong) * i)), 1, pulcObjectCount);
+                Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                if ((c_ulong)PKCS11Utils.ReadLongFromBuffer(pulcObjectCount, 0) == 0) break;
+            }
+            result = C_FindObjectsFinal((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0));
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            
+            //PROCESO DE FIRMA
+            if ((c_ulong)PKCS11Utils.ReadLongFromBuffer(phObjects, 0) != 0)
+            {
+                result = C_SignInit((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), ref pMechanism, (c_ulong)PKCS11Utils.ReadLongFromBuffer(phObjects, 0));
+                Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                string oidString = CryptoConfig.MapNameToOID("sha256"); // f.x. "MD5"
+                Byte[] encodedOid = CryptoConfig.EncodeOID(oidString);
+                string hexOIDSting = PKCS11Utils.ByteArrayToString(encodedOid);
+                string hash = "ebac6efe864bcb9a448d2cd234232685771e8852c89b245aa745efd94b029274";
+
+                Console.WriteLine("HASH: MENSAJE: \n", hash);
+                
+                string asn1hash = ("30" + 49.ToString("X2") + "30" + 13.ToString("X2") + hexOIDSting + "050004" + 32.ToString("X2") + hash).ToLower();
+
+                Console.WriteLine("HASH: MENSAJE: ebac6efe864bcb9a448d2cd234232685771e8852c89b245aa745efd94b029274\n");
+
+                Byte[] asn1Bytes = Enumerable.Range(0, asn1hash.Length / 2).Select(x => Convert.ToByte(asn1hash.Substring(x * 2, 2), 16)).ToArray();
+                
+                IntPtr pData = Marshal.AllocHGlobal(asn1Bytes.Length);
+                Marshal.Copy(asn1Bytes, 0, pData, asn1Bytes.Length);
+                IntPtr pSignature = IntPtr.Zero;
+                IntPtr pSignatureLen = Marshal.AllocHGlobal(sizeof(c_ulong));
+                
+                result = C_Sign((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), pData, (c_ulong)asn1Bytes.Length, pSignature, pSignatureLen);
+                
+                Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                pSignature = Marshal.AllocHGlobal((c_int)PKCS11Utils.ReadLongFromBuffer(pSignatureLen, 0));
+                result = C_Sign((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), pData, (c_ulong)asn1Bytes.Length, pSignature, pSignatureLen);
+                Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                //**** Template Public Key *****//
+                CKA_CLASS = BitConverter.GetBytes(PKCS11Definitions.CKO_PUBLIC_KEY);
+                CKA_ID = Encoding.ASCII.GetBytes("GENECKEYHSM");
+                Tuple<c_ulong, Byte[], c_ulong>[] pPublicTuple =
+                {
+                    Tuple.Create(PKCS11Definitions.CKA_CLASS, CKA_CLASS, (c_ulong)(Marshal.SizeOf(CKA_CLASS[0]) * CKA_CLASS.Length)),
+                    Tuple.Create(PKCS11Definitions.CKA_ID, CKA_ID, (c_ulong)(Marshal.SizeOf(CKA_ID[0]) * CKA_ID.Length))
+                };
+                c_int publicTupleArraySize = PKCS11Utils.GetSizeOfTupleArray(pPublicTuple);
+                pTemplate = Marshal.AllocHGlobal(publicTupleArraySize); //previous template already freed
+
+                PKCS11Utils.InsertAttributesIntPtr(pTemplate, pPublicTuple);
+                //*******************//
+                
+
+                //VERIFICACIÓN DE FIRMA
+                result = C_FindObjectsInit((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), pTemplate, (c_ulong)pPublicTuple.Length);
+                Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                PKCS11Utils.FreeTemplateAttributesIntPtr(pTemplate, pPublicTuple.Length);
+                IntPtr phObjectsPublic = Marshal.AllocHGlobal(sizeof(c_ulong) * 5);
+                IntPtr pulcObjectCountPublic = Marshal.AllocHGlobal(sizeof(c_ulong));
+                for (c_long i = 0; i < 5; i++)
+                {
+                    result = C_FindObjects((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), IntPtr.Add(phObjectsPublic, (c_int)(sizeof(c_ulong) * i)), 1, pulcObjectCountPublic);
+                    Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                    if ((c_ulong)PKCS11Utils.ReadLongFromBuffer(phObjectsPublic, 0) == 0) break;
+                }
+                result = C_FindObjectsFinal((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0));
+                Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                if ((c_ulong)PKCS11Utils.ReadLongFromBuffer(phObjectsPublic, 0) != 0)
+                {
+
+                    result = C_VerifyInit((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), ref pMechanism, (c_ulong)PKCS11Utils.ReadLongFromBuffer(phObjectsPublic, 0));
+                    Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                    
+                    
+                    result = C_Verify((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0), pData, (c_ulong)asn1Bytes.Length, pSignature, (c_ulong)PKCS11Utils.ReadLongFromBuffer(pSignatureLen, 0));
+                    Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+                }
+                Marshal.FreeHGlobal(pData);
+                Marshal.FreeHGlobal(pSignature);
+                Marshal.FreeHGlobal(phObjectsPublic);
+                Marshal.FreeHGlobal(pulcObjectCountPublic);
+            }
+            result = C_Logout((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0));
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            result = C_CloseSession((c_ulong)PKCS11Utils.ReadLongFromBuffer(phSession, 0));
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+            result = C_Finalize(IntPtr.Zero);
+            Assert.AreEqual(PKCS11Definitions.CKR_OK, result);
+
+            Marshal.FreeHGlobal(phSession);
+            Marshal.FreeHGlobal(pTemplate);
+            Marshal.FreeHGlobal(phObjects);
+            Marshal.FreeHGlobal(pulcObjectCount);
+        }
+
+
 
         [TestMethod]
         public unsafe void Test_C_EncryptInit_correct()

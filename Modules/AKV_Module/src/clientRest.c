@@ -258,6 +258,7 @@ int Create_key(struct key_data *keyData, struct key_data_response **keyResponse)
 	strcat(url, "/create?api-version=");
 	strcat(url, APIVERSION);
 	char *param;
+	//Convertir key data en un json para la llamada a AKV
 	param = CreateKey2Json(keyData);
 	if (param == NULL) 
 	{
@@ -266,10 +267,12 @@ int Create_key(struct key_data *keyData, struct key_data_response **keyResponse)
 	}
 	char* response;
 	struct request_data *postData;
+	
 	postData = Store_HttpsData(url, param, keyData->token, TRUE_p);
 	free(url);
 	free(param);
 	if (postData == NULL) return ALLOCATE_ERROR;
+	
 	result = Https_Request(postData, &response, "POST");
 	if (result == UNAUTHORIZED) {
 		result = GetToken(&TOKEN);
